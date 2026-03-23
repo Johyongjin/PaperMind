@@ -18,16 +18,41 @@ from modules.pdf_processor import (
 from modules.sheets_manager import SheetsManager
 
 # ── 설정 헬퍼 ─────────────────────────────────────────────────────────────────
-# 우선순위: 설정 탭 입력값 > .env 기본값
+# 우선순위: 설정 탭 입력값 > st.secrets (Streamlit Cloud) > .env (로컬)
+
+def _secrets_get(key: str, default=None):
+    """st.secrets에서 값을 안전하게 읽는다. 키가 없거나 secrets 미사용 시 default 반환."""
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
 
 def _cfg_api_key() -> str:
-    return st.session_state.get("cfg_api_key") or ANTHROPIC_API_KEY or ""
+    return (
+        st.session_state.get("cfg_api_key")
+        or _secrets_get("ANTHROPIC_API_KEY")
+        or ANTHROPIC_API_KEY
+        or ""
+    )
 
 def _cfg_sa_info() -> dict | None:
-    return st.session_state.get("cfg_sa_info")  # 업로드된 서비스 계정 JSON dict
+    """서비스 계정 JSON dict 반환. 우선순위: 설정 탭 > st.secrets > 로컬 파일(None 반환)."""
+    if st.session_state.get("cfg_sa_info"):
+        return st.session_state["cfg_sa_info"]
+    try:
+        if "gcp_service_account" in st.secrets:
+            return dict(st.secrets["gcp_service_account"])
+    except Exception:
+        pass
+    return None  # None이면 SheetsManager가 로컬 파일 경로로 fallback
 
 def _cfg_sheets_url() -> str:
-    return st.session_state.get("cfg_sheets_url") or GOOGLE_SHEETS_URL or ""
+    return (
+        st.session_state.get("cfg_sheets_url")
+        or _secrets_get("GOOGLE_SHEETS_URL")
+        or GOOGLE_SHEETS_URL
+        or ""
+    )
 
 def _is_ready() -> bool:
     """분석 실행에 필요한 설정이 모두 갖춰졌는지 확인한다."""

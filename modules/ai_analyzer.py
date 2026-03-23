@@ -3,7 +3,8 @@ import time
 import anthropic
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+# API 키가 없으면 None — analyze_pdf() 호출 시 api_key 파라미터로 전달해야 함
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 MAX_CHARS_PER_CHUNK = 15000  # 청크당 최대 전달 글자 수
 CALL_INTERVAL = 20           # API 호출 간 대기 시간 (Rate Limit 방지)
@@ -139,6 +140,8 @@ def _parse_json(raw: str) -> dict:
 def _call_claude(prompt: str, max_tokens: int = 1500, _client=None) -> dict:
     """Rate Limit 발생 시 자동 재시도한다."""
     c = _client or client
+    if not c:
+        raise ValueError("Anthropic API 키가 설정되지 않았습니다. 설정 탭에서 입력하세요.")
     for attempt in range(3):
         try:
             response = c.messages.create(

@@ -2,6 +2,9 @@
 .env
 credentials/
 
+# Streamlit secrets (실제 키값 포함 — 절대 커밋 금지)
+.streamlit/secrets.toml
+
 # PDF 데이터 폴더 (용량이 크고 사용자마다 다름)
 Articles/
 
