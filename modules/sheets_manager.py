@@ -13,16 +13,22 @@ def _extract_sheet_id(url: str) -> str:
     return url.split("/d/")[1].split("/")[0]
 
 
-def _get_service():
-    creds = Credentials.from_service_account_file(
-        GOOGLE_SERVICE_ACCOUNT_PATH, scopes=GOOGLE_SCOPES
-    )
+def _get_service(service_account_path: str = None, service_account_info: dict = None):
+    if service_account_info:
+        creds = Credentials.from_service_account_info(service_account_info, scopes=GOOGLE_SCOPES)
+    else:
+        creds = Credentials.from_service_account_file(
+            service_account_path or GOOGLE_SERVICE_ACCOUNT_PATH, scopes=GOOGLE_SCOPES
+        )
     return build("sheets", "v4", credentials=creds)
 
 
 class SheetsManager:
-    def __init__(self, sheets_url: str = None):
-        self.service = _get_service()
+    def __init__(self, sheets_url: str = None, service_account_path: str = None, service_account_info: dict = None):
+        self.service = _get_service(
+            service_account_path=service_account_path,
+            service_account_info=service_account_info,
+        )
         self.sheet_id = _extract_sheet_id(sheets_url or GOOGLE_SHEETS_URL)
         self._ensure_sheets()
 

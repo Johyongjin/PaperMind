@@ -136,11 +136,12 @@ def _parse_json(raw: str) -> dict:
     return json.loads(text.strip())
 
 
-def _call_claude(prompt: str, max_tokens: int = 1500) -> dict:
+def _call_claude(prompt: str, max_tokens: int = 1500, _client=None) -> dict:
     """Rate Limit 발생 시 자동 재시도한다."""
+    c = _client or client
     for attempt in range(3):
         try:
-            response = client.messages.create(
+            response = c.messages.create(
                 model=CLAUDE_MODEL,
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}]
@@ -174,18 +175,20 @@ def _merge_supplement(base: dict, supplement: dict) -> dict:
     return merged
 
 
-def analyze_pdf(pdf_result: dict, force_type: str = None) -> dict:
+def analyze_pdf(pdf_result: dict, force_type: str = None, api_key: str = None) -> dict:
     """
     process_pdf() 결과를 받아 Claude API로 분석한다.
 
     force_type: "paper" 또는 "report" 지정 시 해당 유형으로 강제 분석.
                 None이면 Claude가 유형을 자동 판별.
+    api_key:    런타임에 전달할 Anthropic API 키. None이면 모듈 기본값 사용.
 
     반환 dict:
     - 성공: {"file_name", "file_hash", "type", ...추출 필드...}
     - 실패: {"file_name", "error": "이유"}
     """
     file_name = pdf_result.get("file_name", "")
+    _client = anthropic.Anthropic(api_key=api_key) if api_key else client
 
     if pdf_result.get("is_scan"):
         return {"file_name": file_name, "error": "스캔 PDF — 텍스트 추출 불가"}
@@ -206,12 +209,12 @@ def analyze_pdf(pdf_result: dict, force_type: str = None) -> dict:
         else:
             prompt = ANALYSIS_PROMPT.format(text=chunks[0][:MAX_CHARS_PER_CHUNK])
 
-        result = _call_claude(prompt)
+        result = _call_claude(prompt, _client=_client)
         result["file_name"] = file_name
         result["file_hash"] = pdf_result.get("file_hash", "")
 
         # 추가 청크 보완 처리
-        doc_type = result.get("type", "paper")
+        doc_type = force_type or result.get("type", "paper")
         fields_template = PAPER_SUPPLEMENT_FIELDS if doc_type == "paper" else REPORT_SUPPLEMENT_FIELDS
 
         for chunk in chunks[1:]:
@@ -221,7 +224,8 @@ def analyze_pdf(pdf_result: dict, force_type: str = None) -> dict:
                     fields=fields_template,
                     text=chunk[:MAX_CHARS_PER_CHUNK]
                 ),
-                max_tokens=600
+                max_tokens=600,
+                _client=_client,
             )
             result = _merge_supplement(result, supplement)
 
